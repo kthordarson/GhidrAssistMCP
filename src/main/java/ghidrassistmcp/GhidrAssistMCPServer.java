@@ -133,8 +133,8 @@ public class GhidrAssistMCPServer {
             try {
                 ServletHolder mcpSseServletHolder = new ServletHolder("mcp-sse-transport", sseTransportProvider);
                 mcpSseServletHolder.setAsyncSupported(true);
-                context.addServlet(mcpSseServletHolder, "/sse");
-                context.addServlet(mcpSseServletHolder, messageEndpoint);
+                // Map to root so the provider can handle both /sse and the configured /message endpoint
+                context.addServlet(mcpSseServletHolder, "/*");
 
                 ServletHolder mcpStreamableServletHolder = new ServletHolder("mcp-streamable-transport", streamableTransportProvider);
                 mcpStreamableServletHolder.setAsyncSupported(true);

@@ -16,7 +16,10 @@
 // Gradle should be invoked from the directory of the project to build.  Please see the
 // application.gradle.version property in <GHIDRA_INSTALL_DIR>/Ghidra/application.properties
 // for the correction version of Gradle to use for the Ghidra installation you specify.
-
+plugins {
+    id 'java'
+    id 'eclipse'
+}
 //----------------------START "DO NOT MODIFY" SECTION------------------------------
 def ghidraInstallDir
 
@@ -44,16 +47,19 @@ repositories {
 
 dependencies {
 	// MCP SDK core dependency
-	implementation 'io.modelcontextprotocol.sdk:mcp:0.17.1'
+	implementation('io.modelcontextprotocol.sdk:mcp:0.17.1') {
+		exclude group: 'com.fasterxml.jackson.core'
+		exclude group: 'com.fasterxml.jackson'
+	}
 	
 	// Jetty embedded server for servlet container
 	implementation 'org.eclipse.jetty:jetty-server:11.0.20'
 	implementation 'org.eclipse.jetty:jetty-servlet:11.0.20'
 	
-	// Jackson for JSON processing (required by MCP)
-	implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
-	implementation 'com.fasterxml.jackson.core:jackson-core:2.18.3'
-	implementation 'com.fasterxml.jackson.core:jackson-annotations:2.18.3'
+	// Compile-time only Jackson (runtime provided by Ghidra)
+	compileOnly 'com.fasterxml.jackson.core:jackson-databind:2.14.2'
+	compileOnly 'com.fasterxml.jackson.core:jackson-core:2.14.2'
+	compileOnly 'com.fasterxml.jackson.core:jackson-annotations:2.14.2'
 }
 
 // Exclude additional files from the built extension
