@@ -6,7 +6,6 @@ bin/
 data/
 dist/
 build/
-ghidra_scripts/
 lib/
 os/
 lucene/
@@ -14,4 +13,4 @@ ghidrassist_analysis.db
 ghidrassist_rlhf.db
 build.gradle
 build.gradle
-.vscode/
+.vscode/.gitlab-ci.yml
