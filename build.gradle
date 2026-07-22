@@ -7,11 +7,11 @@
 // GHIDRA_INSTALL_DIR environment variable or Gradle project property:
 //
 //     > export GHIDRA_INSTALL_DIR=<Absolute path to Ghidra> 
-//     > gradle
+//     > ./gradlew
 //
 //         or
 //
-//     > gradle -PGHIDRA_INSTALL_DIR=<Absolute path to Ghidra>
+//     > ./gradlew -PGHIDRA_INSTALL_DIR=<Absolute path to Ghidra>
 //
 // Gradle should be invoked from the directory of the project to build.  Please see the
 // application.gradle.version property in <GHIDRA_INSTALL_DIR>/Ghidra/application.properties
@@ -21,6 +21,11 @@ plugins {
     id 'eclipse'
 }
 //----------------------START "DO NOT MODIFY" SECTION------------------------------
+if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_25)) {
+	throw new GradleException(
+		"GhidrAssistMCP builds require Java 25 or newer; found ${JavaVersion.current()}")
+}
+
 def ghidraInstallDir
 
 if (System.env.GHIDRA_INSTALL_DIR) {
@@ -56,10 +61,10 @@ dependencies {
 	implementation 'org.eclipse.jetty:jetty-server:11.0.20'
 	implementation 'org.eclipse.jetty:jetty-servlet:11.0.20'
 	
-	// Compile-time only Jackson (runtime provided by Ghidra)
-	compileOnly 'com.fasterxml.jackson.core:jackson-databind:2.14.2'
-	compileOnly 'com.fasterxml.jackson.core:jackson-core:2.14.2'
-	compileOnly 'com.fasterxml.jackson.core:jackson-annotations:2.14.2'
+	// Jackson for JSON processing (required by MCP)
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
+	implementation 'com.fasterxml.jackson.core:jackson-core:2.18.3'
+	implementation 'com.fasterxml.jackson.core:jackson-annotations:2.18.3'
 }
 
 // Exclude additional files from the built extension
@@ -67,8 +72,8 @@ dependencies {
 
 /**
  * Convenience tasks for local development:
- * - `gradle buildExtension` creates the extension zip in `dist/`
- * - `gradle installExtension` unzips that extension into your Ghidra *user* Extensions folder
+ * - `./gradlew buildExtension` creates the extension zip in `dist/`
+ * - `./gradlew installExtension` unzips that extension into your Ghidra *user* Extensions folder
  *
  * This mirrors the Ghidra UI "Install Extensions" flow, which ultimately extracts into:
  * - Windows: %APPDATA%\ghidra\ghidra_<version>_<release>\Extensions\<ExtensionName>

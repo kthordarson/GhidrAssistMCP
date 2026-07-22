@@ -85,23 +85,21 @@ public class ListImportsTool implements McpTool {
                     continue;
                 }
                 
-                // Apply limit
-                if (count >= limit) {
-                    break;
+                // Apply limit to displayed results only; keep scanning for a true total.
+                if (count < limit) {
+                    String libraryName = "unknown";
+                    if (symbol.getParentNamespace() != null) {
+                        libraryName = symbol.getParentNamespace().getName();
+                    }
+
+                    result.append("- ").append(symbol.getName())
+                          .append(" from ").append(libraryName)
+                          .append(" @ ").append(symbol.getAddress())
+                          .append(" (").append(symbol.getSymbolType()).append(")")
+                          .append("\n");
+
+                    count++;
                 }
-                
-                String libraryName = "unknown";
-                if (symbol.getParentNamespace() != null) {
-                    libraryName = symbol.getParentNamespace().getName();
-                }
-                
-                result.append("- ").append(symbol.getName())
-                      .append(" from ").append(libraryName)
-                      .append(" @ ").append(symbol.getAddress())
-                      .append(" (").append(symbol.getSymbolType()).append(")")
-                      .append("\n");
-                
-                count++;
             }
         }
         
@@ -117,10 +115,5 @@ public class ListImportsTool implements McpTool {
         return McpSchema.CallToolResult.builder()
             .addTextContent(result.toString())
             .build();
-    }
-
-    @Override
-    public boolean isReadOnly() {
-        return true;
     }
 }

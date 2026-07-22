@@ -10,12 +10,12 @@ GhidrAssistMCP bridges the gap between AI-powered analysis tools and Ghidra's co
 
 - **MCP Server Integration**: Full Model Context Protocol server implementation using official SDK
 - **Dual HTTP Transports**: Supports SSE and Streamable HTTP transports for maximum client compatibility
-- **35 Built-in Tools**: Comprehensive set of analysis tools with action-based consolidation for cleaner APIs
+- **49 Built-in Tools**: Comprehensive set of analysis tools with action-based consolidation for cleaner APIs
 - **6 MCP Resources**: Static data resources for program info, functions, strings, imports, exports, and segments
 - **7 MCP Prompts**: Pre-built analysis prompts for common reverse engineering tasks
 - **Result Caching**: Intelligent caching system to improve performance for repeated queries
 - **Async Task Support**: Long-running operations execute asynchronously with task management
-- **Multi-Program Support**: Work with multiple open programs simultaneously using `program_name` parameter
+- **Multi-Program Support**: Work with multiple open programs simultaneously using `program_name`; use `list_binaries` Project Path values to disambiguate duplicate filenames
 - **Multi-Window Support**: Single MCP server shared across all CodeBrowser windows with intelligent focus tracking
 - **Active Context Awareness**: Automatic detection of which binary window is in focus, with context hints in all tool responses
 - **Configurable UI**: Easy-to-use interface for managing tools and monitoring activity
@@ -35,7 +35,7 @@ Shameless self-promotion: [GhidrAssist](https://github.com/jtang613/GhidrAssist)
 
 ### Prerequisites
 
-- **Ghidra 11.4+** (tested with Ghidra 12.0 Public)
+- **Ghidra 11.4+** (tested with Ghidra 12.1 Public)
 - **An MCP Client (Like GhidrAssist)**
 
 ### Binary Release (Recommended)
@@ -56,6 +56,9 @@ Shameless self-promotion: [GhidrAssist](https://github.com/jtang613/GhidrAssist)
 
 ### Building from Source
 
+Source builds require Java 25 or newer. The included Gradle wrapper pins the
+supported Gradle release; use it instead of a system Gradle installation.
+
 1. **Clone the repository**:
 
    ```bash
@@ -71,7 +74,7 @@ Shameless self-promotion: [GhidrAssist](https://github.com/jtang613/GhidrAssist)
    Ensure Ghidra isn't running and run:
 
    ```bash
-   gradle installExtension
+   ./gradlew installExtension
    ```
 
    This copies the built ZIP into your Ghidra install (`[GHIDRA_INSTALL_DIR]/Extensions/Ghidra`) and extracts it into your Ghidra **user** Extensions folder (replacing any existing extracted copy).
@@ -98,21 +101,100 @@ Shameless self-promotion: [GhidrAssist](https://github.com/jtang613/GhidrAssist)
 
 The Configuration tab allows you to:
 
-- **View all available tools** (35 total)
+- **View all available tools** (49 total)
 - **Enable/disable individual tools** using checkboxes
 - **Save configuration** to persist across sessions
 - **Monitor tool status** in real-time
 
+## Headless Mode Quickstart
+
+GhidrAssistMCP can also be started from Ghidra's `analyzeHeadless` launcher. This is useful when you want MCP access to a program loaded in headless Ghidra without opening the CodeBrowser UI.
+
+First, build and install the extension so Ghidra can load the compiled classes and bundled dependencies:
+
+```bash
+cd /path/to/GhidrAssistMCP
+
+export GHIDRA_INSTALL_DIR=/path/to/ghidra_12.1_PUBLIC
+./gradlew installExtension
+```
+
+Set paths for your Ghidra install and extracted user extension. On Linux, Ghidra user extensions usually live under `~/.config/ghidra/<ghidra_profile>/Extensions`:
+
+```bash
+export GHIDRA_INSTALL_DIR=/path/to/ghidra_12.1_PUBLIC
+export GHIDRA_USER_EXTENSIONS_DIR="$HOME/.config/ghidra/ghidra_12.1_PUBLIC/Extensions"
+export GHIDRASSISTMCP_EXT="$GHIDRA_USER_EXTENSIONS_DIR/GhidrAssistMCP"
+```
+
+Import a binary and start the MCP server as a headless pre-script:
+
+```bash
+"$GHIDRA_INSTALL_DIR/support/analyzeHeadless" /tmp/ghidra-projects McpHeadless \
+  -import /path/to/binary \
+  -scriptPath "$GHIDRASSISTMCP_EXT/ghidra_scripts" \
+  -preScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8080"
+```
+
+For a binary that is already imported into the project, use `-process` instead:
+
+```bash
+"$GHIDRA_INSTALL_DIR/support/analyzeHeadless" /tmp/ghidra-projects McpHeadless \
+  -process binary_name \
+  -scriptPath "$GHIDRASSISTMCP_EXT/ghidra_scripts" \
+  -preScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8080"
+```
+
+To keep a headless MCP session open after analysis completes, run the server as a post-script with wait mode:
+
+```bash
+"$GHIDRA_INSTALL_DIR/support/analyzeHeadless" /tmp/ghidra-projects McpHeadless \
+  -process binary_name \
+  -scriptPath "$GHIDRASSISTMCP_EXT/ghidra_scripts" \
+  -postScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8080" "wait=true"
+```
+
+MCP clients can connect to:
+
+```text
+SSE:             http://127.0.0.1:8080/sse
+SSE messages:    http://127.0.0.1:8080/message
+Streamable HTTP: http://127.0.0.1:8080/mcp
+```
+
+The headless MCP server runs inside the `analyzeHeadless` JVM and uses the loaded `currentProgram`. The server holds a program consumer while it is running so MCP requests do not race against program database closure. Use `wait=true` when you want `analyzeHeadless` to stay open for interactive MCP clients. A harness can also pass `completion_file=/workspace/control/session.complete`; creating that file closes the MCP server cleanly and lets Ghidra save and exit normally.
+
+Disposable static-analysis labs may pass `tool_profile=agent_lab`. This enables sandbox-local program export while arbitrary path import and Ghidra scripts remain disabled because they can expose process secrets or spawn processes. The harness owns artifact imports. Unknown profiles are rejected.
+
 ## Available Tools
 
-GhidrAssistMCP provides 35 tools organized into categories. Several tools use an action-based API pattern where a single tool provides multiple related operations.
+GhidrAssistMCP provides 49 tools organized into categories. Several tools use an action-based API pattern where a single tool provides multiple related operations.
 
 ### Binary & Program Management
 
 | Tool | Description |
 | ---- | ----------- |
 | `get_binary_info` | Get basic program information (name, architecture, compiler, etc.) |
-| `list_binaries` | List all open programs across all CodeBrowser windows |
+| `list_binaries` | List all open programs across all CodeBrowser windows, including Project Path values for unambiguous `program_name` targeting |
+| `open_program` | List/open project programs in CodeBrowser, with optional analysis prompt suppression and analysis-after-open task submission |
+| `close_program` | Close an open CodeBrowser program; changed programs require `save=true` or `ignore_changes=true` |
+| `import_file` | Import a host file into the current Ghidra project and optionally open it *(disabled by default)* |
+| `project_files` | List or delete files/folders in the active Ghidra project; deletion requires `confirm=true` |
+| `scripts` | List/read/create/delete/run Ghidra scripts *(disabled by default)* |
+| `assemble_code` | Assemble instruction text at an address and optionally patch it into program memory |
+| `patch_bytes` | Patch raw bytes in program memory at a given address |
+| `export_program` | Export the current program to disk (`binary` or `original_file`) *(disabled by default)* |
+
+> **Security-sensitive tools:** `import_file`, `scripts`, and `export_program` are disabled by default because they interact with the host filesystem or execute script code. Enable them explicitly in the plugin configuration UI when needed.
+> `project_files` deletes entries from the active Ghidra project database, not the original imported host files, and requires `confirm=true`.
+
+### Auto Analysis
+
+| Tool | Description |
+| ---- | ----------- |
+| `analysis_options` | List/set/reset Auto Analysis options and save/apply/list/delete option presets for the current program |
+| `analyze_program` | Run Auto Analysis on the current program or all open programs; supports full re-analysis, pending-changes analysis, address ranges, and option overrides |
+| `analysis_control` | Query Auto Analysis status or request cancellation of queued analysis tasks |
 
 ### Function Discovery & Analysis
 
@@ -125,6 +207,8 @@ GhidrAssistMCP provides 35 tools organized into categories. Several tools use an
 | `get_current_function` | Get function at current cursor position |
 | `get_function_stack_layout` | Get stack frame layout with variable offsets |
 | `get_basic_blocks` | Get basic block information for a function |
+| `create_function` | Create/define a function at an address, optionally clearing existing data/code first |
+| `disassemble_at` | Disassemble code at an address, optionally clearing existing data/code in the range first |
 
 ### Binary Information
 
@@ -211,7 +295,7 @@ Rename multiple symbols in one operation.
 | Action | Description |
 | ------ | ----------- |
 | `list` | List local variables for a function |
-| `rename` | Rename a local variable |
+| `rename` | Rename a local variable or a global/data symbol using `scope` |
 | `set_type` | Set data type for a local variable |
 | `set_prototype` | Set function signature/prototype |
 
@@ -221,7 +305,7 @@ Rename multiple symbols in one operation.
 | ------ | ----------- |
 | `list` | List all available data types |
 | `get_info` | Get detailed data type information and structure definitions |
-| `set` | Set data type at a specific address |
+| `set` | Set data type at a specific address, including arrays with `array_count` or suffix syntax like `int[16]` |
 | `delete` | Delete a data type by name (optionally scoped by `category`) |
 
 #### `bookmarks` - Bookmark Management Tool
@@ -400,6 +484,71 @@ If multiple types share the same name across categories, pass `category` (or pas
 }
 ```
 
+### Set an Array Data Type
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "types",
+    "arguments": {
+      "action": "set",
+      "address": "0x00402000",
+      "data_type": "int[16]"
+    }
+  }
+}
+```
+
+Equivalent form:
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "types",
+    "arguments": {
+      "action": "set",
+      "address": "0x00402000",
+      "data_type": "int",
+      "array_count": 16
+    }
+  }
+}
+```
+
+### Create a Function
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "create_function",
+    "arguments": {
+      "address": "0x00401000",
+      "name": "mainWndProc"
+    }
+  }
+}
+```
+
+For overlays or mixed code/data regions where Ghidra defined code as data, clear the existing code unit or an explicit range first:
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "create_function",
+    "arguments": {
+      "address": "0x80012340",
+      "name": "ovl_init",
+      "clear_existing": true,
+      "clear_length": 256
+    }
+  }
+}
+```
+
 ### Rename Function (Action-Based)
 
 ```json
@@ -429,7 +578,7 @@ When working with multiple open programs, first list them:
 }
 ```
 
-Then specify which program to target using `program_name`:
+Then specify which program to target using `program_name`. When multiple programs share the same filename, use the `Project Path` shown by `list_binaries`:
 
 ```json
 {
@@ -437,7 +586,7 @@ Then specify which program to target using `program_name`:
   "params": {
     "name": "get_functions",
     "arguments": {
-      "program_name": "target_binary.exe",
+      "program_name": "/project/folder/target_binary.exe",
       "limit": 10
     }
   }
@@ -521,7 +670,7 @@ GhidrAssistMCP/
 │   ├── TraceNetworkDataPrompt.java
 │   ├── CompareFunctionsPrompt.java
 │   └── ReverseEngineerStructPrompt.java
-└── tools/                    # MCP Tools (35 total)
+└── tools/                    # MCP Tools (49 total)
     ├── Consolidated action-based tools
     ├── Analysis tools
     ├── Modification tools
@@ -537,10 +686,14 @@ GhidrAssistMCP/
 - `struct`: `action: create|modify|merge|set_field|name_gap|auto_create|rename_field|field_xrefs`
 - `rename_symbol`: `target_type: function|data|variable`
 - `comments`: `action: get|set|list|remove`
-- `variables`: `action: list|rename|set_type|set_prototype`
-- `types`: `action: list|get_info|set|delete`
+- `variables`: `action: list|rename|set_type|set_prototype` with `scope: auto|local|global` for rename
+- `types`: `action: list|get|set|create_struct|create_enum|create_typedef|delete`
 - `bookmarks`: `action: list|set|remove`
 - `xrefs`: `address|function` with `include_calls` parameter
+- `analysis_options`: `action: list|set|reset|save_preset|apply_preset|list_presets|delete_preset`
+- `analysis_control`: `action: status|cancel`
+- `project_files`: `action: list|delete`
+- `scripts`: `action: list|get|create|delete|run`
 
 **Tool Interface Methods**:
 
@@ -581,7 +734,7 @@ src/main/java/ghidrassistmcp/
 ├── tasks/                         # Async task system
 ├── resources/                     # MCP resources
 ├── prompts/                       # MCP prompts
-└── tools/                         # Tool implementations (35 files)
+└── tools/                         # Tool implementations
 ```
 
 ### Adding New Tools
@@ -626,22 +779,22 @@ src/main/java/ghidrassistmcp/
 
 ```bash
 # Clean build
-gradle clean
+./gradlew clean
 
 # Build extension zip (written to dist/)
-gradle buildExtension
+./gradlew buildExtension
 
 # Install (extract) extension into the Ghidra user Extensions directory
-gradle installExtension
+./gradlew installExtension
 
 # Uninstall (delete extracted directory from the Ghidra user Extensions directory)
-gradle uninstallExtension
+./gradlew uninstallExtension
 
 # Build/install with specific Ghidra path (required if GHIDRA_INSTALL_DIR isn't set)
-gradle -PGHIDRA_INSTALL_DIR=/path/to/ghidra installExtension
+./gradlew -PGHIDRA_INSTALL_DIR=/path/to/ghidra installExtension
 
 # Debug build
-gradle buildExtension --debug
+./gradlew buildExtension --debug
 ```
 
 ### Dependencies
@@ -726,7 +879,7 @@ Enable debug logging by adding to Ghidra startup:
 
 ### Code Standards
 
-- **Java 21+ features** where appropriate
+- **Java 25 baseline** for builds and runtime validation
 - **Proper exception handling** with meaningful messages
 - **Transaction safety** for all database operations
 - **Thread safety** for UI operations

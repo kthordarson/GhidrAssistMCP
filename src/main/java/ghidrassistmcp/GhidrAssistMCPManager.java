@@ -5,9 +5,12 @@ package ghidrassistmcp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import ghidra.app.services.ProgramManager;
+import ghidra.framework.model.DomainFile;
 import ghidra.framework.plugintool.PluginTool;
 import ghidra.framework.preferences.Preferences;
 import ghidra.program.model.listing.Program;
@@ -202,6 +205,47 @@ public class GhidrAssistMCPManager {
     }
 
     /**
+     * Get the CodeBrowser tool that owns the requested program. Prefer the active tool when the
+     * same program is open in more than one window so its current UI options take precedence.
+     */
+    public PluginTool getToolForProgram(Program program) {
+        if (program == null) {
+            return null;
+        }
+
+        PluginTool currentActiveTool = activeTool;
+        if (ownsProgram(currentActiveTool, program)) {
+            return currentActiveTool;
+        }
+        for (PluginTool tool : registeredTools) {
+            if (ownsProgram(tool, program)) {
+                return tool;
+            }
+        }
+        return null;
+    }
+
+    private boolean ownsProgram(PluginTool tool, Program program) {
+        if (tool == null) {
+            return false;
+        }
+        ProgramManager programManager = tool.getService(ProgramManager.class);
+        if (programManager == null) {
+            return false;
+        }
+        Program[] openPrograms = programManager.getAllOpenPrograms();
+        if (openPrograms == null) {
+            return false;
+        }
+        for (Program openProgram : openPrograms) {
+            if (openProgram == program) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Set the active plugin instance (called when a plugin gains focus).
      * This provides access to UI context like current address and function.
      */
@@ -255,7 +299,15 @@ public class GhidrAssistMCPManager {
 
         List<Program> programs = getAllOpenPrograms();
 
-        // Exact match
+        // Exact project path match (e.g. "/v1/app.exe" disambiguates from "/v2/app.exe")
+        for (Program p : programs) {
+            DomainFile df = p.getDomainFile();
+            if (df != null && df.getPathname().equals(programName)) {
+                return p;
+            }
+        }
+
+        // Exact name match
         for (Program p : programs) {
             if (p.getName().equals(programName)) {
                 return p;
@@ -311,7 +363,7 @@ public class GhidrAssistMCPManager {
      * Apply configuration changes.
      */
     public void applyConfiguration(String host, int port, boolean enabled, boolean asyncEnabled,
-                                   java.util.Map<String, Boolean> toolStates) {
+                                   Map<String, Boolean> toolStates) {
         if (provider != null) {
             provider.logMessage("Applying configuration: " + host + ":" + port + " enabled=" + enabled + " async=" + asyncEnabled);
         }
@@ -327,6 +379,13 @@ public class GhidrAssistMCPManager {
         if (enabled != serverEnabled) {
             serverEnabled = enabled;
             needsRestart = true;
+        }
+
+        if (server != null && toolStatesChanged(toolStates)) {
+            needsRestart = true;
+            if (provider != null) {
+                provider.logMessage("Tool availability changed; restarting MCP server to update discovery");
+            }
         }
 
         // Update async execution setting
@@ -349,6 +408,26 @@ public class GhidrAssistMCPManager {
         if (provider != null) {
             provider.refreshToolsList();
         }
+    }
+
+    /**
+     * MCP tool discovery is built when the server starts, so changed tool states
+     * require a restart before clients see the updated catalog.
+     */
+    private boolean toolStatesChanged(Map<String, Boolean> toolStates) {
+        if (backend == null || toolStates == null) {
+            return false;
+        }
+
+        Map<String, Boolean> currentStates = backend.getToolEnabledStates();
+        for (Map.Entry<String, Boolean> entry : toolStates.entrySet()) {
+            String toolName = entry.getKey();
+            if (currentStates.containsKey(toolName) &&
+                !Objects.equals(currentStates.get(toolName), entry.getValue())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
