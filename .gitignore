@@ -14,3 +14,4 @@ ghidrassist_rlhf.db
 build.gradle
 build.gradle
 .vscode/.gitlab-ci.yml
+.vscode/settings.json
