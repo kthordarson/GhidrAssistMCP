@@ -268,9 +268,9 @@ public class VariablesTool implements McpTool {
         if (function == null) return result("Function not found: " + functionName);
 
         DataTypeManager dtm = program.getDataTypeManager();
-        DataType dataType = dtm.getDataType("/" + dataTypeName);
-        if (dataType == null) dataType = dtm.getDataType(dataTypeName);
-        if (dataType == null) return result("Data type not found: " + dataTypeName);
+        DataTypeResolver.Result resolvedType = DataTypeResolver.resolve(dtm, dataTypeName, arguments.get("array_count"));
+        if (resolvedType.isError()) return result(resolvedType.errorMessage);
+        DataType dataType = resolvedType.dataType;
 
         try (DecompilerSession session = decompilerService.open(program)) {
             DecompileResults results = session.decompiler().decompileFunction(function,

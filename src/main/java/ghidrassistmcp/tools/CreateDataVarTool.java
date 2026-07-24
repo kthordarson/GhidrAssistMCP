@@ -53,11 +53,11 @@ public class CreateDataVarTool implements McpTool {
         }
 
         DataTypeManager dtm = currentProgram.getDataTypeManager();
-        DataType dataType = dtm.getDataType("/" + dataTypeName);
-        if (dataType == null) dataType = dtm.getDataType(dataTypeName);
-        if (dataType == null) {
-            return McpSchema.CallToolResult.builder().addTextContent("Data type not found: " + dataTypeName).build();
+        DataTypeResolver.Result resolvedType = DataTypeResolver.resolve(dtm, dataTypeName, arguments.get("array_count"));
+        if (resolvedType.isError()) {
+            return McpSchema.CallToolResult.builder().addTextContent(resolvedType.errorMessage).build();
         }
+        DataType dataType = resolvedType.dataType;
 
         int txId = currentProgram.startTransaction("Create Data Variable");
         try {
