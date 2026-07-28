@@ -355,12 +355,12 @@ public class GhidrAssistMCPProvider extends ComponentProvider implements McpEven
     }
     
     public void logRequest(String method, String params) {
-        String truncatedParams = params.length() > 60 ? params.substring(0, 77) + "..." : params;
+        String truncatedParams = params.length() > 120 ? params.substring(0, 117) + "..." : params;
         logMessage("REQ: " + method + " " + truncatedParams.replace("\n", "\\n"));
     }
     
     public void logResponse(String method, String response) {
-        String truncatedResponse = response.length() > 60 ? response.substring(0, 77) + "..." : response;
+        String truncatedResponse = response.length() > 120 ? response.substring(0, 117) + "..." : response;
         logMessage("RES: " + method + " " + truncatedResponse.replace("\n", "\\n"));
     }
     
