@@ -44,7 +44,7 @@ public class GhidrAssistMCPProvider extends ComponentProvider implements McpEven
     
     // Default values
     private static final String DEFAULT_HOST = "localhost";
-    private static final int DEFAULT_PORT = 8080;
+    private static final int DEFAULT_PORT = 8084;
     private static final boolean DEFAULT_ENABLED = true;
     private static final boolean DEFAULT_ASYNC_ENABLED = true;
     

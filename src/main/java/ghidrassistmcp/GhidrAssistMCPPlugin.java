@@ -192,7 +192,7 @@ public class GhidrAssistMCPPlugin extends ProgramPlugin {
 	}
 
 	public int getCurrentPort() {
-		return manager != null ? manager.getCurrentPort() : 8080;
+		return manager != null ? manager.getCurrentPort() : 8084;
 	}
 
 	public boolean isServerEnabled() {

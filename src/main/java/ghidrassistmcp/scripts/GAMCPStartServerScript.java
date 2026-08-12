@@ -26,7 +26,7 @@ public class GAMCPStartServerScript extends GhidraScript {
         }
 
         String host = "localhost";
-        int port = 8080;
+        int port = 8084;
         boolean waitForClients = false;
         String completionFile = null;
         String toolProfile = "default";
@@ -41,7 +41,7 @@ public class GAMCPStartServerScript extends GhidraScript {
                     try {
                         port = Integer.parseInt(arg.substring(5));
                     } catch (NumberFormatException e) {
-                        Msg.warn(this, "Invalid port argument, using default 8080");
+                        Msg.warn(this, "Invalid port argument, using default 8084");
                     }
                 } else if (arg.startsWith("wait=")) {
                     waitForClients = Boolean.parseBoolean(arg.substring(5));

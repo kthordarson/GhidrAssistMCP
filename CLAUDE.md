@@ -49,7 +49,7 @@ This is a Ghidra extension project with the following key components:
 
 ### MCP Server
 The extension includes an embedded MCP (Model Context Protocol) server that:
-- Runs on port 8080 by default
+- Runs on port 8084 by default
 - Provides SSE endpoint at `/mcp/sse` and HTTP request endpoint at `/mcp/message`
 - Automatically tracks the currently loaded program
 - Exposes Ghidra analysis capabilities via MCP tools:

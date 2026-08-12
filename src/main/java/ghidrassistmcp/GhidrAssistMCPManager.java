@@ -22,7 +22,7 @@ import ghidra.util.Msg;
  * This solves the problem of multiple plugin instances each trying to start their own
  * MCP server. Instead, we have:
  * - One shared MCP backend that tracks ALL open programs across ALL tools
- * - One shared MCP server (on port 8080) that serves all requests
+ * - One shared MCP server (on port 8084) that serves all requests
  * - Multiple plugin instances that register/unregister their tools
  */
 public class GhidrAssistMCPManager {
@@ -45,7 +45,7 @@ public class GhidrAssistMCPManager {
 
     // Server configuration
     private String currentHost = "localhost";
-    private int currentPort = 8080;
+    private int currentPort = 8084;
     private boolean serverEnabled = true;
 
     /**
@@ -452,7 +452,7 @@ public class GhidrAssistMCPManager {
     private void loadSettings(PluginTool tool) {
         // Load from Ghidra's global Preferences
         currentHost = Preferences.getProperty("GhidrAssistMCP.Server Host", "localhost");
-        String portStr = Preferences.getProperty("GhidrAssistMCP.Server Port", "8080");
+        String portStr = Preferences.getProperty("GhidrAssistMCP.Server Port", "8084");
         String enabledStr = Preferences.getProperty("GhidrAssistMCP.Server Enabled", "true");
         String asyncEnabledStr = Preferences.getProperty("GhidrAssistMCP.Async Execution Enabled", "true");
 
@@ -461,7 +461,7 @@ public class GhidrAssistMCPManager {
             serverEnabled = Boolean.parseBoolean(enabledStr);
         } catch (NumberFormatException e) {
             Msg.warn(this, "Failed to parse preferences, using defaults: " + e.getMessage());
-            currentPort = 8080;
+            currentPort = 8084;
             serverEnabled = true;
         }
 

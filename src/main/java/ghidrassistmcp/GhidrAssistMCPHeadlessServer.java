@@ -43,7 +43,7 @@ public class GhidrAssistMCPHeadlessServer {
      *
      * @param program The current program from the headless script
      * @param host    Host to bind (typically "localhost" or "0.0.0.0")
-     * @param port    Port to bind (typically 8080)
+     * @param port    Port to bind (typically 8084)
      */
     public synchronized void start(Program program, String host, int port) throws Exception {
         start(program, host, port, "default");

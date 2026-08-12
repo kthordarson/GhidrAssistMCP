@@ -94,7 +94,7 @@ supported Gradle release; use it instead of a system Gradle installation.
 
 2. **Configure Server Settings**:
    - **Host**: Default is `localhost`
-   - **Port**: Default is `8080`
+   - **Port**: Default is `8084`
    - **Enable/Disable**: Toggle the MCP server on/off
 
 ### Tool Management
@@ -133,7 +133,7 @@ Import a binary and start the MCP server as a headless pre-script:
 "$GHIDRA_INSTALL_DIR/support/analyzeHeadless" /tmp/ghidra-projects McpHeadless \
   -import /path/to/binary \
   -scriptPath "$GHIDRASSISTMCP_EXT/ghidra_scripts" \
-  -preScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8080"
+  -preScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8084"
 ```
 
 For a binary that is already imported into the project, use `-process` instead:
@@ -142,7 +142,7 @@ For a binary that is already imported into the project, use `-process` instead:
 "$GHIDRA_INSTALL_DIR/support/analyzeHeadless" /tmp/ghidra-projects McpHeadless \
   -process binary_name \
   -scriptPath "$GHIDRASSISTMCP_EXT/ghidra_scripts" \
-  -preScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8080"
+  -preScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8084"
 ```
 
 To keep a headless MCP session open after analysis completes, run the server as a post-script with wait mode:
@@ -151,15 +151,15 @@ To keep a headless MCP session open after analysis completes, run the server as 
 "$GHIDRA_INSTALL_DIR/support/analyzeHeadless" /tmp/ghidra-projects McpHeadless \
   -process binary_name \
   -scriptPath "$GHIDRASSISTMCP_EXT/ghidra_scripts" \
-  -postScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8080" "wait=true"
+  -postScript GAMCPStartServerScript.java "host=127.0.0.1" "port=8084" "wait=true"
 ```
 
 MCP clients can connect to:
 
 ```text
-SSE:             http://127.0.0.1:8080/sse
-SSE messages:    http://127.0.0.1:8080/message
-Streamable HTTP: http://127.0.0.1:8080/mcp
+SSE:             http://127.0.0.1:8084/sse
+SSE messages:    http://127.0.0.1:8084/message
+Streamable HTTP: http://127.0.0.1:8084/mcp
 ```
 
 The headless MCP server runs inside the `analyzeHeadless` JVM and uses the loaded `currentProgram`. The server holds a program consumer while it is running so MCP requests do not race against program database closure. Use `wait=true` when you want `analyzeHeadless` to stay open for interactive MCP clients. A harness can also pass `completion_file=/workspace/control/session.complete`; creating that file closes the MCP server cleanly and lets Ghidra save and exit normally.
@@ -599,7 +599,7 @@ GhidrAssistMCP uses a singleton architecture that enables seamless operation acr
 
 ### How It Works
 
-1. **Single Shared Server**: One MCP server (port 8080) serves all CodeBrowser windows
+1. **Single Shared Server**: One MCP server (port 8084) serves all CodeBrowser windows
 2. **Focus Tracking**: Automatically detects which CodeBrowser window is currently active
 3. **Context Hints**: All tool responses include context information to help AI understand which binary is in focus
 
@@ -641,7 +641,7 @@ GhidrAssistMCP/
 ├── GhidrAssistMCPPlugin      # Plugin instance (one per CodeBrowser window)
 │   └── Registers with singleton manager
 ├── GhidrAssistMCPServer      # HTTP MCP server (SSE + Streamable)
-│   └── Single shared instance on port 8080
+│   └── Single shared instance on port 8084
 ├── GhidrAssistMCPBackend     # Tool management and execution
 │   ├── Tool registry with enable/disable states
 │   ├── Result caching system
@@ -833,7 +833,7 @@ Detailed logging in Ghidra's console:
 
 #### Server Won't Start
 
-- Check if port 8080 is available
+- Check if port 8084 is available
 - Verify Ghidra installation path
 - Examine console logs for errors
 
@@ -846,7 +846,7 @@ Detailed logging in Ghidra's console:
 #### MCP Client Connection Issues
 
 - Confirm server is running (check GhidrAssistMCP window)
-- Test connection: `curl http://localhost:8080/sse`
+- Test connection: `curl http://localhost:8084/sse`
 - Check firewall settings
 
 #### Tool Execution Failures
