@@ -306,7 +306,7 @@ public class GhidrAssistMCPBackend implements McpBackend {
             // Notify listeners of the request
             notifyToolRequest(toolName, arguments);
 
-            Msg.info(this, "Executing tool: " + toolName);
+            Msg.info(this, "[ghidrassist] Executing tool: " + toolName);
 
             // Resolve the target program - check if program_name is specified
             Program targetProgram = resolveTargetProgram(arguments);
