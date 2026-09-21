@@ -120,6 +120,11 @@ public class RenameSymbolBatchTool implements McpTool {
         // Track variable renames per function so we can decompile once per function.
         Map<String, List<RenameSymbolCore.VariableRenameRequest>> variableRenamesByFunction = new HashMap<>();
 
+        // Defer function/data renames so they can all be applied in a single EDT round trip
+        // instead of one blocking invokeAndWait per item (which starves the UI thread and can
+        // make Ghidra appear to hang on large batches).
+        List<RenameSymbolCore.ItemRenameRequest> functionAndDataRenames = new ArrayList<>();
+
         for (int i = 0; i < renames.size(); i++) {
             ObjectNode itemResult = objectMapper.createObjectNode();
             itemResult.put("index", i);
@@ -162,15 +167,31 @@ public class RenameSymbolBatchTool implements McpTool {
                 continue;
             }
 
-            RenameSymbolCore.RenameResult r;
-            try {
-                r = RenameSymbolCore.renameOne(itemArgs, currentProgram, decompilerService);
-            } catch (Exception e) {
-                r = new RenameSymbolCore.RenameResult(false, "Unhandled error: " + e.getMessage());
+            if (("function".equals(targetType) || "data".equals(targetType))
+                    && id instanceof String && nn instanceof String) {
+                functionAndDataRenames.add(
+                    new RenameSymbolCore.ItemRenameRequest(i, targetType, (String) id, (String) nn));
+                continue;
             }
 
-            itemResult.put("success", r.success);
-            itemResult.put("message", r.message);
+            itemResult.put("success", false);
+            itemResult.put("message", "Invalid target_type, or missing identifier/new_name");
+        }
+
+        // Apply all function/data renames in a single EDT round trip.
+        if (!functionAndDataRenames.isEmpty()) {
+            Map<Integer, RenameSymbolCore.RenameResult> perIndex =
+                RenameSymbolCore.renameManyOnEdt(currentProgram, functionAndDataRenames);
+
+            for (RenameSymbolCore.ItemRenameRequest req : functionAndDataRenames) {
+                ObjectNode node = itemNodes.get(req.index);
+                RenameSymbolCore.RenameResult r = perIndex.get(req.index);
+                if (r == null) {
+                    r = new RenameSymbolCore.RenameResult(false, "Unknown error renaming symbol");
+                }
+                node.put("success", r.success);
+                node.put("message", r.message);
+            }
         }
 
         // Apply variable renames in batches per function (one decompile pass per function).

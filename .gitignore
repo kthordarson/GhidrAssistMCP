@@ -15,3 +15,4 @@ build.gradle
 build.gradle
 .vscode/.gitlab-ci.yml
 .vscode/settings.json
+ghidrassist_chat_artifacts/*

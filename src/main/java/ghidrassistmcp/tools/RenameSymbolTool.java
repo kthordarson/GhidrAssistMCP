@@ -177,6 +177,50 @@ final class RenameSymbolCore {
         return null;
     }
 
+    static final class ItemRenameRequest {
+        final int index;
+        final String targetType;
+        final String identifier;
+        final String newName;
+
+        ItemRenameRequest(int index, String targetType, String identifier, String newName) {
+            this.index = index;
+            this.targetType = targetType;
+            this.identifier = identifier;
+            this.newName = newName;
+        }
+    }
+
+    /**
+     * Batch rename functions and/or data symbols in a single EDT round trip.
+     *
+     * Renaming N items individually via {@link #renameFunction}/{@link #renameData} means N
+     * blocking {@code SwingUtilities.invokeAndWait} calls from a background thread, one per item.
+     * For large batches this starves the EDT of time to service Ghidra's own GUI update workers
+     * (symbol tree, tables), which then time out waiting for the EDT and log spurious
+     * "potential deadlock" errors while the whole UI appears to hang. Doing the entire batch in
+     * one EDT dispatch avoids that.
+     */
+    static Map<Integer, RenameResult> renameManyOnEdt(Program program, List<ItemRenameRequest> items) {
+        Map<Integer, RenameResult> resultsByIndex = new HashMap<>();
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                for (ItemRenameRequest item : items) {
+                    RenameResult result = "function".equals(item.targetType)
+                        ? renameFunctionOnEdt(program, item.identifier, item.newName)
+                        : renameDataOnEdt(program, item.identifier, item.newName);
+                    resultsByIndex.put(item.index, result);
+                }
+            });
+        } catch (Exception e) {
+            for (ItemRenameRequest item : items) {
+                resultsByIndex.putIfAbsent(item.index,
+                    new RenameResult(false, "Error executing rename on EDT: " + e.getMessage()));
+            }
+        }
+        return resultsByIndex;
+    }
+
     static final class VariableRenameRequest {
         final int index;
         final String oldName;
@@ -343,61 +387,64 @@ final class RenameSymbolCore {
      * Ghidra's Symbol Tree UI updates.
      */
     private static RenameResult renameFunction(Program program, String oldName, String newName) {
-        Function function = findFunctionByName(program, oldName);
-        if (function == null) {
-            return new RenameResult(false, "Function not found: " + oldName);
-        }
-
         AtomicReference<RenameResult> resultRef = new AtomicReference<>();
-        final Function targetFunction = function;
-
         try {
-            SwingUtilities.invokeAndWait(() -> {
-                int transactionID = program.startTransaction("Rename Function");
-                try {
-                    Object[] parsed = parseAndCreateNamespace(program, newName);
-                    if (parsed == null) {
-                        program.endTransaction(transactionID, false);
-                        resultRef.set(new RenameResult(false, "Invalid qualified name format: " + newName));
-                        return;
-                    }
-
-                    Namespace targetNamespace = (Namespace) parsed[0];
-                    String simpleName = (String) parsed[1];
-
-                    // Check if a function with this name already exists in the target namespace
-                    Function existingFunction = findFunctionByName(program, simpleName);
-                    if (existingFunction != null && existingFunction != targetFunction &&
-                        existingFunction.getParentNamespace().equals(targetNamespace)) {
-                        program.endTransaction(transactionID, false);
-                        resultRef.set(new RenameResult(false,
-                            "Function with name '" + simpleName + "' already exists in namespace '" +
-                                targetNamespace.getName(true) + "'"));
-                        return;
-                    }
-
-                    if (!targetNamespace.isGlobal()) {
-                        targetFunction.setParentNamespace(targetNamespace);
-                    }
-
-                    targetFunction.setName(simpleName, SourceType.USER_DEFINED);
-                    program.endTransaction(transactionID, true);
-
-                    String resultName = targetNamespace.isGlobal()
-                        ? simpleName
-                        : targetNamespace.getName(true) + "::" + simpleName;
-                    resultRef.set(new RenameResult(true,
-                        "Successfully renamed function '" + oldName + "' to '" + resultName + "'"));
-                } catch (Exception e) {
-                    program.endTransaction(transactionID, false);
-                    resultRef.set(new RenameResult(false, "Error renaming function: " + e.getMessage()));
-                }
-            });
+            SwingUtilities.invokeAndWait(() -> resultRef.set(renameFunctionOnEdt(program, oldName, newName)));
         } catch (Exception e) {
             return new RenameResult(false, "Error executing rename on EDT: " + e.getMessage());
         }
 
         return resultRef.get() != null ? resultRef.get() : new RenameResult(false, "Unknown error renaming function");
+    }
+
+    /**
+     * Same as {@link #renameFunction}, but assumes it is already running on the EDT.
+     * Used to batch many renames into a single {@code invokeAndWait} round trip.
+     */
+    private static RenameResult renameFunctionOnEdt(Program program, String oldName, String newName) {
+        Function function = findFunctionByName(program, oldName);
+        if (function == null) {
+            return new RenameResult(false, "Function not found: " + oldName);
+        }
+        final Function targetFunction = function;
+
+        int transactionID = program.startTransaction("Rename Function");
+        try {
+            Object[] parsed = parseAndCreateNamespace(program, newName);
+            if (parsed == null) {
+                program.endTransaction(transactionID, false);
+                return new RenameResult(false, "Invalid qualified name format: " + newName);
+            }
+
+            Namespace targetNamespace = (Namespace) parsed[0];
+            String simpleName = (String) parsed[1];
+
+            // Check if a function with this name already exists in the target namespace
+            Function existingFunction = findFunctionByName(program, simpleName);
+            if (existingFunction != null && existingFunction != targetFunction &&
+                existingFunction.getParentNamespace().equals(targetNamespace)) {
+                program.endTransaction(transactionID, false);
+                return new RenameResult(false,
+                    "Function with name '" + simpleName + "' already exists in namespace '" +
+                        targetNamespace.getName(true) + "'");
+            }
+
+            if (!targetNamespace.isGlobal()) {
+                targetFunction.setParentNamespace(targetNamespace);
+            }
+
+            targetFunction.setName(simpleName, SourceType.USER_DEFINED);
+            program.endTransaction(transactionID, true);
+
+            String resultName = targetNamespace.isGlobal()
+                ? simpleName
+                : targetNamespace.getName(true) + "::" + simpleName;
+            return new RenameResult(true,
+                "Successfully renamed function '" + oldName + "' to '" + resultName + "'");
+        } catch (Exception e) {
+            program.endTransaction(transactionID, false);
+            return new RenameResult(false, "Error renaming function: " + e.getMessage());
+        }
     }
 
     /**
@@ -407,86 +454,79 @@ final class RenameSymbolCore {
      * Ghidra's Symbol Tree UI updates.
      */
     private static RenameResult renameData(Program program, String identifier, String newName) {
-        Address address = resolveDataAddress(program, identifier);
-        if (address == null) {
-            return new RenameResult(false, "Could not resolve data/global symbol: " + identifier);
-        }
-
         AtomicReference<RenameResult> resultRef = new AtomicReference<>();
-        final Address targetAddress = address;
-
         try {
-            SwingUtilities.invokeAndWait(() -> {
-                int transactionID = program.startTransaction("Rename Data");
-                try {
-                    Data data = program.getListing().getDataAt(targetAddress);
-                    if (data != null) {
-                        Symbol primarySymbol = data.getPrimarySymbol();
-                        if (primarySymbol != null) {
-                            String oldName = primarySymbol.getName();
-                            try {
-                                primarySymbol.setName(newName, SourceType.USER_DEFINED);
-                                program.endTransaction(transactionID, true);
-                                resultRef.set(new RenameResult(true,
-                                    "Successfully renamed data at " + identifier +
-                                        " from '" + oldName + "' to '" + newName + "'"));
-                                return;
-                            } catch (DuplicateNameException e) {
-                                program.endTransaction(transactionID, false);
-                                resultRef.set(new RenameResult(false,
-                                    "Symbol with name '" + newName + "' already exists"));
-                                return;
-                            } catch (InvalidInputException e) {
-                                program.endTransaction(transactionID, false);
-                                resultRef.set(new RenameResult(false, "Invalid symbol name: " + newName));
-                                return;
-                            }
-                        }
-
-                        program.getSymbolTable().createLabel(targetAddress, newName, SourceType.USER_DEFINED);
-                        program.endTransaction(transactionID, true);
-                        resultRef.set(new RenameResult(true,
-                            "Successfully created label '" + newName + "' at " + identifier));
-                        return;
-                    }
-
-                    Symbol[] symbols = program.getSymbolTable().getSymbols(targetAddress);
-                    if (symbols.length > 0) {
-                        Symbol symbol = symbols[0];
-                        String oldName = symbol.getName();
-                        try {
-                            symbol.setName(newName, SourceType.USER_DEFINED);
-                            program.endTransaction(transactionID, true);
-                            resultRef.set(new RenameResult(true,
-                                "Successfully renamed symbol at " + identifier +
-                                    " from '" + oldName + "' to '" + newName + "'"));
-                            return;
-                        } catch (DuplicateNameException e) {
-                            program.endTransaction(transactionID, false);
-                            resultRef.set(new RenameResult(false,
-                                "Symbol with name '" + newName + "' already exists"));
-                            return;
-                        } catch (InvalidInputException e) {
-                            program.endTransaction(transactionID, false);
-                            resultRef.set(new RenameResult(false, "Invalid symbol name: " + newName));
-                            return;
-                        }
-                    }
-
-                    program.getSymbolTable().createLabel(targetAddress, newName, SourceType.USER_DEFINED);
-                    program.endTransaction(transactionID, true);
-                    resultRef.set(new RenameResult(true,
-                        "Successfully created label '" + newName + "' at " + identifier));
-                } catch (Exception e) {
-                    program.endTransaction(transactionID, false);
-                    resultRef.set(new RenameResult(false, "Error creating label: " + e.getMessage()));
-                }
-            });
+            SwingUtilities.invokeAndWait(() -> resultRef.set(renameDataOnEdt(program, identifier, newName)));
         } catch (Exception e) {
             return new RenameResult(false, "Error executing rename on EDT: " + e.getMessage());
         }
 
         return resultRef.get() != null ? resultRef.get() : new RenameResult(false, "Unknown error renaming data");
+    }
+
+    /**
+     * Same as {@link #renameData}, but assumes it is already running on the EDT.
+     * Used to batch many renames into a single {@code invokeAndWait} round trip.
+     */
+    private static RenameResult renameDataOnEdt(Program program, String identifier, String newName) {
+        Address targetAddress = resolveDataAddress(program, identifier);
+        if (targetAddress == null) {
+            return new RenameResult(false, "Could not resolve data/global symbol: " + identifier);
+        }
+
+        int transactionID = program.startTransaction("Rename Data");
+        try {
+            Data data = program.getListing().getDataAt(targetAddress);
+            if (data != null) {
+                Symbol primarySymbol = data.getPrimarySymbol();
+                if (primarySymbol != null) {
+                    String oldName = primarySymbol.getName();
+                    try {
+                        primarySymbol.setName(newName, SourceType.USER_DEFINED);
+                        program.endTransaction(transactionID, true);
+                        return new RenameResult(true,
+                            "Successfully renamed data at " + identifier +
+                                " from '" + oldName + "' to '" + newName + "'");
+                    } catch (DuplicateNameException e) {
+                        program.endTransaction(transactionID, false);
+                        return new RenameResult(false, "Symbol with name '" + newName + "' already exists");
+                    } catch (InvalidInputException e) {
+                        program.endTransaction(transactionID, false);
+                        return new RenameResult(false, "Invalid symbol name: " + newName);
+                    }
+                }
+
+                program.getSymbolTable().createLabel(targetAddress, newName, SourceType.USER_DEFINED);
+                program.endTransaction(transactionID, true);
+                return new RenameResult(true, "Successfully created label '" + newName + "' at " + identifier);
+            }
+
+            Symbol[] symbols = program.getSymbolTable().getSymbols(targetAddress);
+            if (symbols.length > 0) {
+                Symbol symbol = symbols[0];
+                String oldName = symbol.getName();
+                try {
+                    symbol.setName(newName, SourceType.USER_DEFINED);
+                    program.endTransaction(transactionID, true);
+                    return new RenameResult(true,
+                        "Successfully renamed symbol at " + identifier +
+                            " from '" + oldName + "' to '" + newName + "'");
+                } catch (DuplicateNameException e) {
+                    program.endTransaction(transactionID, false);
+                    return new RenameResult(false, "Symbol with name '" + newName + "' already exists");
+                } catch (InvalidInputException e) {
+                    program.endTransaction(transactionID, false);
+                    return new RenameResult(false, "Invalid symbol name: " + newName);
+                }
+            }
+
+            program.getSymbolTable().createLabel(targetAddress, newName, SourceType.USER_DEFINED);
+            program.endTransaction(transactionID, true);
+            return new RenameResult(true, "Successfully created label '" + newName + "' at " + identifier);
+        } catch (Exception e) {
+            program.endTransaction(transactionID, false);
+            return new RenameResult(false, "Error creating label: " + e.getMessage());
+        }
     }
 
     private static Address resolveDataAddress(Program program, String identifier) {
