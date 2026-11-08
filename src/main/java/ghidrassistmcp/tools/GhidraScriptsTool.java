@@ -276,8 +276,7 @@ public class GhidraScriptsTool implements McpTool {
             McpTask task = backend.submitTask(
                 getName(), arguments, currentProgram,
                 taskContext -> runScript(arguments, currentProgram, backend));
-            return textResult("Script task submitted: " + task.getTaskId() +
-                "\nUse get_task_status with this task_id to retrieve the result.");
+            return textResult("Script task submitted: " + task.getTaskId() + "\nUse get_task_status with this task_id to retrieve the result.");
         }
         return runScript(arguments, currentProgram, backend);
     }
@@ -358,8 +357,15 @@ public class GhidraScriptsTool implements McpTool {
                 String.join("/", info.getCategory()),
                 nullToEmpty(info.getDescription()),
                 child.getAbsolutePath(),
-                userDir.containsPath(child)));
+                isWithin(userDir, child)));
         }
+    }
+
+    // ResourceFile.containsPath is absent in Ghidra 12.2; compare normalized paths instead.
+    private static boolean isWithin(ResourceFile dir, ResourceFile file) {
+        Path dirPath = Path.of(dir.getAbsolutePath()).toAbsolutePath().normalize();
+        Path filePath = Path.of(file.getAbsolutePath()).toAbsolutePath().normalize();
+        return filePath.startsWith(dirPath);
     }
 
     private ResourceFile resolveExistingScript(String name, boolean allowSystem) throws IOException {

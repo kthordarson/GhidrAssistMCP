@@ -401,7 +401,7 @@ public class GhidrAssistMCPBackend implements McpBackend {
                     cacheDiscriminator);
                 McpSchema.CallToolResult cachedResult = cache.get(cacheKey, targetProgram);
                 if (cachedResult != null) {
-                    Msg.info(this, "Cache hit for tool: " + toolName);
+                    // Msg.info(this, "Cache hit for tool: " + toolName);
                     McpSchema.CallToolResult decorated = addActiveContextToResult(cachedResult,
                         captureProgramContext(targetProgram));
                     notifyToolResponse(toolName, decorated);
@@ -878,7 +878,7 @@ public class GhidrAssistMCPBackend implements McpBackend {
             params = params.substring(0, 57) + "...";
         }
 
-        Msg.info(this, "Notifying " + eventListeners.size() + " listeners of tool request: " + toolName);
+        // Msg.info(this, "Notifying " + eventListeners.size() + " listeners of tool request: " + toolName);
 
         for (McpEventListener listener : eventListeners) {
             try {
